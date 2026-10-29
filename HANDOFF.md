@@ -1,81 +1,108 @@
 # Handoff: civet behavior project (CMZ)
 
-Last updated 2026-10-29. Deadline: **2026-10-31**. Branch: `feat/civet-zoo-rules-cvat` (pushed to `github.com/Siwali/cmz-project`).
+Last updated 2026-10-30. **Deadline 2026-10-31.** Branch `feat/civet-zoo-rules-cvat`, pushed to `github.com/Siwali/cmz-project` (public repo; no footage in it).
 
-## Goal
-Detect a large spotted civet's behavior from CCTV so the zoo gets an observation sheet: Active/Inactive duration plus behavior tallies.
-Right now the scope is **three classes only: Eating, Locomotion, Resting**, using **only the friend's processed dataset** (`cmz_processed_dataset.zip`, 22 short clips, 5 fps frames). Cameras do not need to be identified.
+## 1. Where we are in one paragraph
+The pipeline runs end to end on the friend's processed dataset (22 short clips, 3 classes: Eating, Locomotion, Resting): detect the civet, crop, train a CNN, add frame-to-frame motion, write a per-second table and a time/status/behavior table. Best Active/Inactive result so far is **85.7 % per second (CNN + motion)** against 82.1 % for a lighting+stillness baseline and 78.3 % for the CNN alone, from 5-fold cross-validation by video. **No manual annotation has been done yet**: clip labels are the friend's folder names, boxes come from MegaDetector, and `review_edits.csv` is still the empty template. The user chose **Option 1: review the labels of the weakest videos, re-run, compare.**
 
-## What exists (all in this repo)
-| Path | What it does | Status |
-|---|---|---|
-| `pipeline/civet_rules.py` | Per-second behavior CSV to Active/Inactive duration sheet (1-min minimum bout, 10-min sleeping-box rule) and hourly frequency tallies | Tested locally on fake data |
-| `pipeline/make_fake_detections.py` | Fake per-second CSV with known answers | Tested |
-| `pipeline/behavior_data.py` | Loads the processed dataset, applies `review_edits.csv`, tight crops, per-second rules CSV | Tested locally on the real dataset (box mapping, edits, crops, rules CSV) |
-| `pipeline/make_review_sheets.py` | Contact sheets, one thumbnail per second per clip, for checking labels | Tested locally: 28 sheets for the 22 clips; red border = no civet box |
-| `pipeline/redetect.py` | Second MegaDetector pass (`MDV6-apa-rtdetr-e`, conf 0.15) on frames with no civet box | Parses; needs GPU |
-| `pipeline/train_behavior.py` | ResNet18 on tight crops, test report vs a "ignores the civet" baseline, per-second tables | Parses; needs GPU; **not run yet** |
-| `pipeline/stack_motion.py` | Combines the CV predictions with frame-to-frame motion (logistic regression, same folds) and compares with the baseline | Tested locally on synthetic predictions + the real manifest; **not run on the real `behavior_cv/predictions.csv` yet** |
-| `notebooks/02_train_behavior.ipynb` | Colab notebook that runs all of the above in order | Not run yet |
-| `notebooks/01_video_audit.ipynb` | Lists long videos with duration, fps, chunks | Ran in Colab, works |
-| `pipeline/make_clips.py`, `annotation/*`, `pipeline/rois/*` | Earlier path: cut clips from the long videos using `timeline_events.csv`, CVAT labels, ROI polygons per camera | Built; parked for now |
-| `pipeline/detect_video.py` | YOLO output on a long video to the per-second CSV | Not run (no model yet) |
+## 2. NEXT ACTION (Option 1: label review, about 45 min)
+1. Open the contact sheets in Drive: `MyDrive/CMZprojectphase2/data/review_sheets/`. Start with the weakest videos: **E05, E02, E03, R05, R06, R07** (then the rest if time allows). One thumbnail per second; red border = no civet box; the number under it is the second.
+2. Write wrong stretches in `MyDrive/CMZprojectphase2/data/review_edits.csv`, header `video_id,start_s,end_s,action`:
+   ```
+   video_id,start_s,end_s,action
+   E05,0,20,drop              # civet not eating / not visible
+   E02,0,8,relabel:Locomotion  # label does not match what the civet does
+   ```
+   `drop` removes those seconds; `relabel:<Eating|Locomotion|Resting>` changes the label.
+3. In Colab (GPU runtime), run in this order (notebook `notebooks/02_train_behavior.ipynb` has these cells):
+   - clone/pull: `git -C /content/cmz-project fetch origin feat/civet-zoo-rules-cvat` then `git -C /content/cmz-project reset --hard origin/feat/civet-zoo-rules-cvat`
+   - unzip the data to local disk (`/content/CMZ`) from `MyDrive/CMZprojectphase2/data/cmz_processed_dataset.zip`
+   - copy `redetect.csv` from Drive into `/content/CMZ/metadata/` (**must exist, otherwise the re-detected boxes are silently skipped**; the log prints `redetect.csv found: True`)
+   - train with cross-validation, writing to a NEW folder so run 2 is kept:
+     `python pipeline/train_behavior.py --base /content/CMZ --edits <Drive>/review_edits.csv --out <Drive>/behavior_cv_reviewed --cv --epochs 4 --freeze-backbone --redetect-min-conf 0.35`
+   - motion step: `python pipeline/stack_motion.py --base /content/CMZ --pred <Drive>/behavior_cv_reviewed/predictions.csv --out <Drive>/behavior_cv_reviewed`
+4. Compare `stacked_metrics.csv` (new) with the Run 3 table in section 5. Report honestly whether label review helped.
+5. Write up (section 7) and commit/push.
 
-## Findings about the processed dataset (from `metadata/`)
-- Classes: Eating 5 videos, Locomotion 10, Resting 7. Source video is 15 fps, 1920x1080 HEVC. `camera` column is empty.
-- **Lighting is tied to the class**: Eating all colour/day, Locomotion all infrared/night, Resting 5 day + 2 infrared.
-- A "model" that ignores the civet (infrared = Locomotion, still picture = Resting, else Eating) scores about 85 % train, 93 % val, **44 to 54 % test**. A real model must beat the test number, and test must be read per lighting.
-- The first detector (`MDV6-yolov10-e`) missed the civet in most infrared clips (median confidence 0). Test split has only 28 usable Locomotion and 12 usable Resting frames, so `redetect.py` is essential.
-- Crops include the tray (Eating) and the tire bed (Resting): a background shortcut. `train_behavior.py` re-crops tighter (10 % margin).
+## 3. Repo structure (`E:\College\Image Processing\cmz-project`)
+```
+HANDOFF.md                         this file
+.gitignore                         ignores videos, images, weights, out/ runs/ data/
+annotation/
+  ANNOTATION_GUIDE.md              CVAT guide (parked: not used with the processed dataset)
+  cvat_labels_civet.json, cvat_labels_rois.json
+  extract_frames.py                frames from long videos (--root for the video folder)
+  windows.csv, timeline_events.csv hand-written timeline of 4 cameras (A01-A04, night, 35-50 min)
+notebooks/
+  01_video_audit.ipynb             lists the long videos (Ran in Colab, works)
+  02_train_behavior.ipynb          the whole Colab run for the processed dataset
+pipeline/
+  behavior_data.py                 manifest loading, review edits, tight crops, rules CSV
+  make_review_sheets.py            contact sheets for the label review
+  redetect.py                      2nd MegaDetector pass (GPU; took 1.5 h on CPU)
+  train_behavior.py                ResNet18 on crops; --cv, --freeze-backbone, --redetect-min-conf
+  stack_motion.py                  CNN + motion; writes behavior_table.csv
+  civet_rules.py                   per-second CSV to Active/Inactive sheet + hourly tallies (1-min rule, sleeping-box rule)
+  make_fake_detections.py          test data for civet_rules.py
+  make_clips.py                    cuts clips from long videos using timeline_events.csv (parked)
+  detect_video.py                  YOLO on a long video to per-second CSV (parked, no model)
+  rois/rois_A01..A04.json          normalized ROI polygons per camera (door, box_entrance, box_body, tray, tire_bed, water_bowl)
+```
 
-## How to run (Colab, GPU)
-1. Put `cmz_processed_dataset.zip` in `MyDrive/CMZ/`.
-2. Open `notebooks/02_train_behavior.ipynb` from the repo (or upload it) and run top to bottom.
-3. Review sheets land in `MyDrive/CMZ/review_sheets/`. Write bad stretches in `MyDrive/CMZ/review_edits.csv`.
-4. Results land in `MyDrive/CMZ/behavior_run1/` (`metrics.json`, `predictions.csv`, `test_per_second.csv`, `rules/`, `model.pt`).
+## 4. Drive structure (`MyDrive/CMZprojectphase2/`)
+```
+data/
+  cmz_processed_dataset.zip        friend's dataset (571 MB), contains metadata/ and processed/
+  manifest.csv, frames_raw.csv, video_inventory.csv, ...   copies of the metadata CSVs
+  redetect.csv                     2nd-pass boxes (1,534 of 1,536 frames; weak ones filtered by --redetect-min-conf)
+  review_sheets/                   contact sheets (28 JPGs)
+  review_edits.csv                 EMPTY TEMPLATE: to be filled in (next action)
+  behavior_run1/                   run 1 (fixed split)
+  behavior_cv/                     runs 2 and 3: predictions.csv, per_video.csv, per_second.csv, per_second_stacked.csv, stacked_metrics.csv, behavior_table.csv, rules/
+  raw/cam1..cam4/                  long CCTV videos (A01..A04, 1.2 to 7 h each, 25 fps, night IR)
+```
+Colab working copies (lost on restart): `/content/cmz-project` (code) and `/content/CMZ` (unzipped dataset).
 
-## Run log
-- **Run 1 (fixed split, conf cut-off 0.35, GPU, 8 epochs):** test accuracy 0.23 (macro-F1 0.34) vs the "ignores the civet" baseline 0.54. Eating test video E05 (daytime) was predicted Resting in 149 of 171 frames; infrared Locomotion 28/28 and Resting 0/12.
-  - `box source` showed only `first_pass: 3338`: **`redetect.csv` was not in `/content/CMZ/metadata/`** after the runtime restart, so the re-detections were not used and the test set was still tiny (28 Locomotion, 12 Resting). The notebook now copies it from Drive (`MyDrive/CMZprojectphase2/data/redetect.csv`) and `train_behavior.py` prints whether it was found.
-  - Val macro-F1 swung 0.99, 0.89, 0.93, 0.46, 0.61, 0.96: the val/test splits are 1 to 2 videos per class, so single-split scores are noise.
-- Re-detection boxes: a spot check of 12 boxes (conf 0.18 to 0.90) found about 2 to 3 on plants and 1 on a food tray. Confidence only partly separates them (civets on the tire bed score 0.36 to 0.43). Cut-off 0.35 is a compromise.
-- **Run 2 (5-fold CV by video, frozen backbone, 4 epochs, conf cut-off 0.35, GPU; redetect.csv used: 1,062 re-detected boxes + 3,338 first-pass = 4,400 frames):** output in `MyDrive/CMZprojectphase2/data/behavior_cv/`.
-  - Every frame: accuracy **0.717**, macro-F1 0.684. One prediction per second: accuracy 0.741, macro-F1 0.715. Majority-class guess (Resting) = 0.594.
-  - "Ignores the civet" baseline (lighting + frame-to-frame change): accuracy 0.817, macro-F1 0.810, so the baseline is **better**. Note it uses motion, which is a real behavior cue that a single-frame model cannot see.
-  - Recall per class (frames): Eating 70 %, Locomotion 75 %, Resting 71 %. Daytime only: accuracy 0.768. Infrared only: Locomotion 75 % but **Resting 7 %** (R06 8 %, R07 7 %): infrared Resting is called Locomotion, i.e. the model leans on lighting and there are only 2 infrared Resting videos.
-  - Weak videos: E05 10 %, E02 46 %, E03 52 %, R06 8 %, R07 7 %. Strong: E01 99 %, E04 93 %, R04 99 %, L07 100 %.
-  - Conclusion: pipeline works end to end; the data (22 clips, almost no infrared Eating/Resting) cannot support a reliable classifier for the zoo's night footage. Adding motion features to the classifier, and night clips from `annotation/timeline_events.csv`, are the next steps.
+## 5. Results so far
+**Dataset findings.** Eating 5 videos (all colour/day), Locomotion 10 (all infrared), Resting 7 (5 day + 2 infrared). Lighting is tied to the class, so a model can cheat. The first-pass detector (`MDV6-yolov10-e`) missed the civet in most infrared frames; `redetect.py` (`MDV6-apa-rtdetr-e`, conf 0.15) fixed most of that but boxes some plants and a food tray (about 2-3 of 12 sampled), so weak boxes are dropped (`--redetect-min-conf 0.35`).
 
-- **Run 3 (`stack_motion.py` on the run-2 out-of-fold predictions, 954 seconds, 22 videos, same folds):**
+**Run 1, fixed split.** Test accuracy 0.23 vs baseline 0.54. Invalid: re-detections were not loaded (`box source: first_pass 3338` only), and the split has 1-2 videos per class.
 
-  | variant | accuracy | macro-F1 | Active/Inactive acc | Resting recall (infrared) |
-  |---|---|---|---|---|
-  | baseline (lighting + stillness) | 0.821 | 0.815 | 0.821 | 0.000 |
-  | CNN only | 0.741 | 0.715 | 0.783 | 0.063 |
-  | motion only | 0.714 | 0.602 | 0.848 | 0.825 |
-  | **CNN + motion** | 0.780 | 0.726 | **0.857** | 0.508 |
-  | CNN + motion + lighting flag | 0.823 | 0.813 | 0.823 | 0.032 |
+**Run 2, 5-fold CV by video (4,400 frames, 1,062 re-detected boxes).** Frame accuracy 0.717 (macro-F1 0.684); per second 0.741 (0.715). Majority guess 0.594. Recall Eating 70 %, Locomotion 75 %, Resting 71 %. Infrared Resting only 7 % (R06 8 %, R07 7 %). Weak videos: E05 10 %, E02 46 %, E03 52 %, R06, R07. Strong: E01 99 %, E04 93 %, R04 99 %, L07 100 %.
 
-  Reading: motion lifts Active/Inactive from 78.3 % (CNN) / 82.1 % (baseline) to 85.7 %, and recovers infrared Resting (6 % to 51 %) without using lighting. Adding the lighting flag raises 3-class accuracy but collapses infrared Resting to 3 %: it is the lighting shortcut. The baseline's 3-class lead is inflated by the dataset's lighting/class link. 22 clips, so differences of a few points are suggestive, not proven. `stack_motion.py` also writes `behavior_table.csv` (video, start, end, status, behavior) and `per_second_stacked.csv`.
+**Run 3, CNN + motion (`stack_motion.py`, 954 seconds, same folds).**
 
-## Still to do
-- [ ] Run the notebook end to end in Colab and fix whatever breaks (first real run of `train_behavior.py`).
-- [ ] Review the 22 clips' sheets and fill `review_edits.csv`.
-- [ ] Re-run training after the edits; compare against the baseline in `metrics.json` (test, per lighting).
-- [ ] Write up: 22 clips is a pipeline proof, not a final model; night Eating and Resting are barely present.
-- [ ] Optional: our own timeline clips (`annotation/timeline_events.csv`, `make_clips.py`) add night Eating/Resting/Locomotion; open question whether to merge them in.
+| variant | accuracy | macro-F1 | Active/Inactive | Resting recall (infrared) |
+|---|---|---|---|---|
+| baseline (lighting + stillness) | 0.821 | 0.815 | 0.821 | 0.000 |
+| CNN only | 0.741 | 0.715 | 0.783 | 0.063 |
+| motion only | 0.714 | 0.602 | 0.848 | 0.825 |
+| **CNN + motion** | 0.780 | 0.726 | **0.857** | 0.508 |
+| CNN + motion + lighting flag | 0.823 | 0.813 | 0.823 | 0.032 |
 
-## Decisions already made
-- Three classes first (Eating, Locomotion, Resting); Active = Eating + Locomotion, Inactive = Resting.
-- Split by video (or by time block), never by frame. Cross-camera clips of the same moment stay in one split.
-- No CVAT box annotation for now: MegaDetector gives the boxes. "Annotation" = reviewing clip labels.
-- Raw zoo footage is private to the group: never commit videos, frames or crops (`.gitignore` covers them). The GitHub repo is public.
+Reading: motion carries most of the Active/Inactive signal and recovers infrared Resting without lighting. The lighting flag restores 3-class accuracy by using the shortcut (infrared Resting collapses to 3 %), so report CNN + motion as the main number. The baseline's 3-class lead is inflated by the dataset's lighting/class link. Only 22 clips: differences of a few points are suggestive, not proven.
 
-## Open questions
-- Where did the friend's clips come from (days, cameras)? Do they overlap with our timeline events?
-- A02 sleeping-box entry time: `4:44:30` vs `0:44:30` (in `timeline_events.csv`, entered as 4:44:30).
-- Whether to merge our night clips into training.
+## 6. Decisions and constraints
+- Three classes (Eating, Locomotion, Resting); Active = Eating + Locomotion, Inactive = Resting. Camera identity not needed.
+- Only the friend's processed dataset for training (user's choice). Our own night timeline clips (`timeline_events.csv`, `make_clips.py`) are parked; they would add night Eating/Resting.
+- Split by video (5 folds from `fold`), never by frame.
+- "Annotation" here = reviewing clip labels (CVAT box annotation is not planned: boxes come from MegaDetector).
+- Zoo footage is private to the group: never commit videos, frames or crops. The repo is public; the raw Drive folder may be link-shared: the user was told to check.
+- Rule layer for the long videos (1-min minimum bout, 10-min sleeping-box rule at the A02/A03 `box_entrance`) exists in `civet_rules.py` but is not yet fed with real model output.
 
-## Environment notes
-- Colab loads code with a `git clone`/`pull` of this branch (public repo, no token needed). The local PC has Python 3.15 with no ML packages; test only pandas-level code locally.
-- Fork's bundled git: `C:\Users\xkidc\AppData\Local\Fork\gitInstance\2.50.1\cmd\git.exe` (git is not on PATH).
+## 7. Write-up outline
+1. Aim and data: 22 short clips, 3 classes; clip-level labels, automatic boxes, no manual frame annotation (until the label review).
+2. Method: MegaDetector boxes (two passes), tight crops, ResNet18 (frozen backbone), motion features, per-second table, status table.
+3. Results: Run 2 and Run 3 tables above (plus the post-review run when done).
+4. Limitations: tiny dataset; lighting tied to class; no infrared Eating, only 2 infrared Resting videos; plant/tray false boxes; labels per clip; zoo night footage not tested.
+5. Next steps: add night clips from the timeline, manual box/label annotation, feed per-second output into `civet_rules.py` for the zoo observation sheet.
+
+## 8. Open questions
+- Where did the friend's clips come from (days, cameras)? Overlap with the timeline events?
+- A02 box entry time: `4:44:30` (as entered) vs `0:44:30`.
+- Whether to merge our night clips into training later.
+
+## 9. Environment and working notes
+- Local PC: Windows, Python 3.15 (no ML packages); git is not on PATH: use `C:\Users\xkidc\AppData\Local\Fork\gitInstance\2.50.1\cmd\git.exe`. Test only pandas/PIL-level code locally; training needs a Colab T4 GPU.
+- Colab pulls code with `fetch` + `reset --hard origin/feat/civet-zoo-rules-cvat` (simple `pull` once failed silently).
+- The user asks for confirmation before commits and pushes: they answer "Commit and push" each time.
