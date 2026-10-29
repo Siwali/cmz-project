@@ -26,6 +26,7 @@ from sklearn.pipeline import make_pipeline
 from sklearn.preprocessing import StandardScaler
 
 from behavior_data import CLASSES, STATUS
+from civet_rules import enforce_min_bout, to_runs
 
 P_COLS = [f"p_{c}" for c in CLASSES]
 MOTION_COLS = ["motion_log", "motion_max_log", "still_frac"]
@@ -85,11 +86,33 @@ def cross_fit(g, cols, folds):
     return pred
 
 
+def clock(sec):
+    return f"{sec // 3600:02d}:{sec % 3600 // 60:02d}:{sec % 60:02d}"
+
+
+def bout_table(g, pred, min_bout):
+    """time, status, behavior per video: consecutive seconds with the same status (runs shorter than
+    min_bout seconds are absorbed by their neighbours, as in civet_rules.py). Seconds with no
+    detection count as Unknown."""
+    rows = []
+    for vid, v in g.assign(pred=pred).sort_values("second").groupby("video_id"):
+        first, last = int(v["second"].min()), int(v["second"].max())
+        full = v.set_index("second")["pred"].reindex(range(first, last + 1))
+        states = ["Unknown" if not isinstance(x, str) else STATUS[x] for x in full]
+        for state, s, e in enforce_min_bout(to_runs(states), min_bout):
+            seg = full.iloc[s:e].dropna()
+            rows.append({"video_id": vid, "start_time": clock(first + s), "end_time": clock(first + e),
+                         "duration_s": e - s, "status": state,
+                         "behavior": seg.mode().iat[0] if len(seg) else "not_visible"})
+    return pd.DataFrame(rows)
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--base", required=True, help="folder holding metadata/manifest.csv")
     ap.add_argument("--pred", required=True, help="predictions.csv from train_behavior.py --cv")
     ap.add_argument("--out", required=True)
+    ap.add_argument("--min-bout", type=int, default=5, help="shortest Active/Inactive stretch kept in the table (s)")
     args = ap.parse_args()
 
     g = per_second_table(args.base, args.pred)
@@ -118,6 +141,10 @@ def main():
     out.mkdir(parents=True, exist_ok=True)
     g.assign(**{f"pred_{k.split(' (')[0].replace(' + ', '_').replace(' ', '_')}": v for k, v in variants.items()}) \
         .to_csv(out / "per_second_stacked.csv", index=False)
+    bouts = bout_table(g, variants[best], args.min_bout)
+    bouts.to_csv(out / "behavior_table.csv", index=False)
+    print(f"\nbehavior table (time, status, behavior), first rows of {len(bouts)}:")
+    print(bouts.head(12).to_string(index=False))
     table.to_csv(out / "stacked_metrics.csv")
     (out / "stacked_metrics.json").write_text(json.dumps(rows, indent=2))
     print(f"\nsaved to {out}")

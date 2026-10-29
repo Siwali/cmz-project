@@ -46,6 +46,18 @@ Right now the scope is **three classes only: Eating, Locomotion, Resting**, usin
   - Weak videos: E05 10 %, E02 46 %, E03 52 %, R06 8 %, R07 7 %. Strong: E01 99 %, E04 93 %, R04 99 %, L07 100 %.
   - Conclusion: pipeline works end to end; the data (22 clips, almost no infrared Eating/Resting) cannot support a reliable classifier for the zoo's night footage. Adding motion features to the classifier, and night clips from `annotation/timeline_events.csv`, are the next steps.
 
+- **Run 3 (`stack_motion.py` on the run-2 out-of-fold predictions, 954 seconds, 22 videos, same folds):**
+
+  | variant | accuracy | macro-F1 | Active/Inactive acc | Resting recall (infrared) |
+  |---|---|---|---|---|
+  | baseline (lighting + stillness) | 0.821 | 0.815 | 0.821 | 0.000 |
+  | CNN only | 0.741 | 0.715 | 0.783 | 0.063 |
+  | motion only | 0.714 | 0.602 | 0.848 | 0.825 |
+  | **CNN + motion** | 0.780 | 0.726 | **0.857** | 0.508 |
+  | CNN + motion + lighting flag | 0.823 | 0.813 | 0.823 | 0.032 |
+
+  Reading: motion lifts Active/Inactive from 78.3 % (CNN) / 82.1 % (baseline) to 85.7 %, and recovers infrared Resting (6 % to 51 %) without using lighting. Adding the lighting flag raises 3-class accuracy but collapses infrared Resting to 3 %: it is the lighting shortcut. The baseline's 3-class lead is inflated by the dataset's lighting/class link. 22 clips, so differences of a few points are suggestive, not proven. `stack_motion.py` also writes `behavior_table.csv` (video, start, end, status, behavior) and `per_second_stacked.csv`.
+
 ## Still to do
 - [ ] Run the notebook end to end in Colab and fix whatever breaks (first real run of `train_behavior.py`).
 - [ ] Review the 22 clips' sheets and fill `review_edits.csv`.
