@@ -34,6 +34,7 @@ def extract(video, start_s, end_s, out_dir, every_s):
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("windows")
+    ap.add_argument("--root", default="", help="folder that the video paths in the CSV are relative to")
     ap.add_argument("--out", default="frames")
     ap.add_argument("--every", type=int, default=1, help="seconds between frames")
     args = ap.parse_args()
@@ -43,7 +44,7 @@ def main():
     rows = []
     for w in pd.read_csv(args.windows).itertuples():
         before = set(out_dir.glob("*.jpg"))
-        extract(w.video, int(w.start_s), int(w.end_s), out_dir, args.every)
+        extract(Path(args.root) / w.video, int(w.start_s), int(w.end_s), out_dir, args.every)
         for f in sorted(set(out_dir.glob("*.jpg")) - before):
             rows.append({"file": f.name, "video": Path(w.video).name,
                          "elapsed_s": int(f.stem.rsplit("_s", 1)[1]), "tag": w.tag})
