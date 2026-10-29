@@ -33,6 +33,13 @@ Right now the scope is **three classes only: Eating, Locomotion, Resting**, usin
 3. Review sheets land in `MyDrive/CMZ/review_sheets/`. Write bad stretches in `MyDrive/CMZ/review_edits.csv`.
 4. Results land in `MyDrive/CMZ/behavior_run1/` (`metrics.json`, `predictions.csv`, `test_per_second.csv`, `rules/`, `model.pt`).
 
+## Run log
+- **Run 1 (fixed split, conf cut-off 0.35, GPU, 8 epochs):** test accuracy 0.23 (macro-F1 0.34) vs the "ignores the civet" baseline 0.54. Eating test video E05 (daytime) was predicted Resting in 149 of 171 frames; infrared Locomotion 28/28 and Resting 0/12.
+  - `box source` showed only `first_pass: 3338`: **`redetect.csv` was not in `/content/CMZ/metadata/`** after the runtime restart, so the re-detections were not used and the test set was still tiny (28 Locomotion, 12 Resting). The notebook now copies it from Drive (`MyDrive/CMZprojectphase2/data/redetect.csv`) and `train_behavior.py` prints whether it was found.
+  - Val macro-F1 swung 0.99, 0.89, 0.93, 0.46, 0.61, 0.96: the val/test splits are 1 to 2 videos per class, so single-split scores are noise.
+- Re-detection boxes: a spot check of 12 boxes (conf 0.18 to 0.90) found about 2 to 3 on plants and 1 on a food tray. Confidence only partly separates them (civets on the tire bed score 0.36 to 0.43). Cut-off 0.35 is a compromise.
+- Next: `--cv` (5-fold by video, every video tested once) and `--freeze-backbone` were added to `train_behavior.py` to get a steadier number. Not yet run.
+
 ## Still to do
 - [ ] Run the notebook end to end in Colab and fix whatever breaks (first real run of `train_behavior.py`).
 - [ ] Review the 22 clips' sheets and fill `review_edits.csv`.
