@@ -15,6 +15,7 @@ Right now the scope is **three classes only: Eating, Locomotion, Resting**, usin
 | `pipeline/make_review_sheets.py` | Contact sheets, one thumbnail per second per clip, for checking labels | Tested locally: 28 sheets for the 22 clips; red border = no civet box |
 | `pipeline/redetect.py` | Second MegaDetector pass (`MDV6-apa-rtdetr-e`, conf 0.15) on frames with no civet box | Parses; needs GPU |
 | `pipeline/train_behavior.py` | ResNet18 on tight crops, test report vs a "ignores the civet" baseline, per-second tables | Parses; needs GPU; **not run yet** |
+| `pipeline/stack_motion.py` | Combines the CV predictions with frame-to-frame motion (logistic regression, same folds) and compares with the baseline | Tested locally on synthetic predictions + the real manifest; **not run on the real `behavior_cv/predictions.csv` yet** |
 | `notebooks/02_train_behavior.ipynb` | Colab notebook that runs all of the above in order | Not run yet |
 | `notebooks/01_video_audit.ipynb` | Lists long videos with duration, fps, chunks | Ran in Colab, works |
 | `pipeline/make_clips.py`, `annotation/*`, `pipeline/rois/*` | Earlier path: cut clips from the long videos using `timeline_events.csv`, CVAT labels, ROI polygons per camera | Built; parked for now |
@@ -38,7 +39,12 @@ Right now the scope is **three classes only: Eating, Locomotion, Resting**, usin
   - `box source` showed only `first_pass: 3338`: **`redetect.csv` was not in `/content/CMZ/metadata/`** after the runtime restart, so the re-detections were not used and the test set was still tiny (28 Locomotion, 12 Resting). The notebook now copies it from Drive (`MyDrive/CMZprojectphase2/data/redetect.csv`) and `train_behavior.py` prints whether it was found.
   - Val macro-F1 swung 0.99, 0.89, 0.93, 0.46, 0.61, 0.96: the val/test splits are 1 to 2 videos per class, so single-split scores are noise.
 - Re-detection boxes: a spot check of 12 boxes (conf 0.18 to 0.90) found about 2 to 3 on plants and 1 on a food tray. Confidence only partly separates them (civets on the tire bed score 0.36 to 0.43). Cut-off 0.35 is a compromise.
-- Next: `--cv` (5-fold by video, every video tested once) and `--freeze-backbone` were added to `train_behavior.py` to get a steadier number. Not yet run.
+- **Run 2 (5-fold CV by video, frozen backbone, 4 epochs, conf cut-off 0.35, GPU; redetect.csv used: 1,062 re-detected boxes + 3,338 first-pass = 4,400 frames):** output in `MyDrive/CMZprojectphase2/data/behavior_cv/`.
+  - Every frame: accuracy **0.717**, macro-F1 0.684. One prediction per second: accuracy 0.741, macro-F1 0.715. Majority-class guess (Resting) = 0.594.
+  - "Ignores the civet" baseline (lighting + frame-to-frame change): accuracy 0.817, macro-F1 0.810, so the baseline is **better**. Note it uses motion, which is a real behavior cue that a single-frame model cannot see.
+  - Recall per class (frames): Eating 70 %, Locomotion 75 %, Resting 71 %. Daytime only: accuracy 0.768. Infrared only: Locomotion 75 % but **Resting 7 %** (R06 8 %, R07 7 %): infrared Resting is called Locomotion, i.e. the model leans on lighting and there are only 2 infrared Resting videos.
+  - Weak videos: E05 10 %, E02 46 %, E03 52 %, R06 8 %, R07 7 %. Strong: E01 99 %, E04 93 %, R04 99 %, L07 100 %.
+  - Conclusion: pipeline works end to end; the data (22 clips, almost no infrared Eating/Resting) cannot support a reliable classifier for the zoo's night footage. Adding motion features to the classifier, and night clips from `annotation/timeline_events.csv`, are the next steps.
 
 ## Still to do
 - [ ] Run the notebook end to end in Colab and fix whatever breaks (first real run of `train_behavior.py`).
