@@ -99,6 +99,8 @@ def main():
     ap.add_argument("--batch", type=int, default=64)
     ap.add_argument("--margin", type=float, default=0.1, help="crop margin around the box (0.1 = 10 %%)")
     ap.add_argument("--lr", type=float, default=3e-4)
+    ap.add_argument("--redetect-min-conf", type=float, default=0.3,
+                    help="ignore re-detected boxes below this confidence (they include plants and shadows)")
     args = ap.parse_args()
 
     base, out = Path(args.base), Path(args.out)
@@ -107,7 +109,7 @@ def main():
     torch.manual_seed(0)
     np.random.seed(0)
 
-    frames = load_frames(base, args.edits, base / "metadata" / "redetect.csv")
+    frames = load_frames(base, args.edits, base / "metadata" / "redetect.csv", args.redetect_min_conf)
     data = select_training(frames)
     print("frames with a usable civet box, per label and split:")
     print(pd.crosstab(data.label, data.split, margins=True).to_string())

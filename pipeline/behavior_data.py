@@ -46,15 +46,19 @@ def apply_edits(m, edits_csv):
     return m[~m["_drop"]].drop(columns="_drop")
 
 
-def load_frames(base, edits_csv=None, redetect_csv=None):
-    """Manifest rows with full640 boxes (friend's detector, then re-detections), review edits applied."""
+def load_frames(base, edits_csv=None, redetect_csv=None, redetect_min_conf=0.0):
+    """Manifest rows with full640 boxes (friend's detector, then re-detections), review edits applied.
+
+    Re-detections below `redetect_min_conf` are ignored: the low threshold used in redetect.py also
+    boxes plants and shadows, and those weak boxes are the ones this cut-off removes."""
     base = Path(base)
     m = pd.read_csv(base / "metadata" / "manifest.csv", low_memory=False)
     m = m[m["readable"] == True].copy()  # noqa: E712
     m["bx1"], m["by1"], m["bx2"], m["by2"] = raw_box_to_full(m)
     m["box_source"] = np.where(m["bx1"].notna(), "first_pass", "")
     if redetect_csv and Path(redetect_csv).exists():
-        r = pd.read_csv(redetect_csv).drop_duplicates("full_path").set_index("full_path")
+        r = pd.read_csv(redetect_csv).drop_duplicates("full_path")
+        r = r[r["md_conf"] >= redetect_min_conf].set_index("full_path")
         miss = m["bx1"].isna() & m["full_path"].isin(r.index)
         for col in ("bx1", "by1", "bx2", "by2"):
             m.loc[miss, col] = m.loc[miss, "full_path"].map(r[col])
