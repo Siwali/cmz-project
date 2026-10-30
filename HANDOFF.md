@@ -1,6 +1,6 @@
 # Handoff: civet behavior project (CMZ)
 
-Last updated 2026-10-30. **Deadline 2026-10-31.** Branch `feat/civet-zoo-rules-cvat`, pushed to `github.com/Siwali/cmz-project` (public repo; no footage in it).
+Last updated 2026-10-31. **Deadline moved to Monday 2026-11-02** (three working days: Sat 31 Oct, Sun 1 Nov, Mon 2 Nov). Branch `feat/civet-zoo-rules-cvat`, pushed to `github.com/Siwali/cmz-project` (public repo; no footage in it).
 
 ## 1. Where we are in one paragraph
 The pipeline runs end to end on the friend's processed dataset (22 short clips, 3 classes: Eating, Locomotion, Resting): detect the civet, crop, train a CNN, add frame-to-frame motion, write a per-second table and a time/status/behavior table. Best Active/Inactive result so far is **85.7 % per second (CNN + motion)** against 82.1 % for a lighting+stillness baseline and 78.3 % for the CNN alone, from 5-fold cross-validation by video. **No manual annotation has been done yet**: clip labels are the friend's folder names, boxes come from MegaDetector, and `review_edits.csv` is still the empty template. The user chose **Option 1: review the labels of the weakest videos, re-run, compare.**
@@ -23,6 +23,12 @@ The pipeline runs end to end on the friend's processed dataset (22 short clips, 
    - motion step: `python pipeline/stack_motion.py --base /content/CMZ --pred <Drive>/behavior_cv_reviewed/predictions.csv --out <Drive>/behavior_cv_reviewed`
 4. Compare `stacked_metrics.csv` (new) with the Run 3 table in section 5. Report honestly whether label review helped.
 5. Write up (section 7) and commit/push.
+
+## 2b. Plan for the extra time (deadline Mon 2 Nov)
+- **Sat 31 Oct:** Option 1 above (label review of the weakest videos, re-run CV + motion, compare with Run 3).
+- **Sun 1 Nov: add night data (the main weakness).** Cut our own clips from the long videos with `pipeline/make_clips.py` (12 clips from `annotation/timeline_events.csv`: night Eating 2, Locomotion 6, Resting 4; class names now match the friend's: Eating/Locomotion/Resting), run them through the friend's preprocessing (`CMZ_Frame_Extraction_and_Preprocessing.ipynb`: text masking, MegaDetector crops, manifest), concatenate their manifest with `cmz_processed_dataset`'s, give the new videos folds, and re-run CV. Expected gain: infrared Eating/Resting examples. NOT STARTED; needs a merge step (new `fold` values, `camera` column, unique video_ids such as `A03_003545`). Caution: A02 and A03 clips of the same moment must share a fold.
+- **Mon 2 Nov:** final write-up (outline in section 7), final commit/push, results tables and `behavior_table.csv` for the report. Keep the morning free for last fixes.
+- If time is short, skip the Sunday step and say in the report that night data is the next step.
 
 ## 3. Repo structure (`E:\College\Image Processing\cmz-project`)
 ```
