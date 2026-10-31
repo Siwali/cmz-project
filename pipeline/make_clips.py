@@ -21,8 +21,9 @@ import pandas as pd
 SKIP_BEHAVIORS = {"not_visible", "resting_in_box", "unsure"}  # not clip classes (hidden / unknown)
 MIN_CLIP_S = 3
 # First-pass classes: three folders, finer behaviors are merged or left out (see --all-classes)
-THREE_CLASSES = {"locomotion": "locomotion", "feeding": "feeding",
-                 "standing_still": "still", "sitting": "still", "resting_lying": "still"}
+# Class names match the friend's dataset (Eating / Locomotion / Resting) so the clips can be merged into it.
+THREE_CLASSES = {"locomotion": "Locomotion", "feeding": "Eating",
+                 "standing_still": "Resting", "sitting": "Resting", "resting_lying": "Resting"}
 TEST_FROM_S = 45 * 60  # events starting at or after 00:45:00 are the held-out test visit
 
 
