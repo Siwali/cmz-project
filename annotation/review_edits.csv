@@ -1,0 +1,8 @@
+video_id,start_s,end_s,action
+E05,11,45,drop
+E03,0,2,drop
+E03,47,50,drop
+E02,2,2,drop
+E02,8,8,drop
+R01,3,37,drop
+R07,0,2,relabel:Locomotion
