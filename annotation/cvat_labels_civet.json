@@ -1,0 +1,36 @@
+[
+  {
+    "name": "civet",
+    "color": "#ff8c00",
+    "type": "rectangle",
+    "attributes": [
+      {
+        "name": "behavior",
+        "mutable": true,
+        "input_type": "select",
+        "default_value": "standing_still",
+        "values": [
+          "locomotion",
+          "feeding",
+          "drinking",
+          "grooming",
+          "sniffing_exploring",
+          "territorial_marking",
+          "urine",
+          "feces",
+          "standing_still",
+          "sitting",
+          "resting_lying",
+          "unsure"
+        ]
+      },
+      {
+        "name": "partly_hidden",
+        "mutable": true,
+        "input_type": "checkbox",
+        "default_value": "false",
+        "values": ["false"]
+      }
+    ]
+  }
+]

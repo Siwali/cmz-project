@@ -1,0 +1,20 @@
+# Local CPU inference environment for the raw-video behavior pipeline (Python 3.12).
+# The system Python (3.15) is too new for PyTorch, so this runs in a managed 3.12 venv.
+#
+# Set up (PowerShell, from the repo root):
+#   uv venv .venv-infer --python 3.12
+#   uv pip install --python .\.venv-infer\Scripts\python.exe -r requirements-infer.txt
+#
+# On Windows these torch wheels are CPU-only (no NVIDIA GPU required).
+torch>=2.2
+torchvision>=0.17
+PytorchWildlife>=1.2.0
+opencv-python>=4.8
+numpy>=1.26,<2.3
+pandas>=2.0
+pillow>=10.0
+# PytorchWildlife eagerly imports its audio module, and yolov5 needs pkg_resources,
+# so these must be present even though the behavior pipeline does not use them:
+soundfile>=0.12
+librosa>=0.10
+setuptools<81  # keeps pkg_resources, which yolov5 imports

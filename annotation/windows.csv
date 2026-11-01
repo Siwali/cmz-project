@@ -1,0 +1,11 @@
+video,start_s,end_s,tag
+cam1/A01_20260405000000_Locomotion.mp4,0,30,empty
+cam2/A02_20260405000000_locomotion_Sleeping-resting-in-box.mp4,0,30,empty
+cam3/A03_20260405000000.mp4,0,30,empty
+cam4/A04_20260405000000.mp4,0,30,empty
+cam3/A03_20260405000000.mp4,2130,2230,a03_exit_box_eat_sit_groom
+cam1/A01_20260405000000_Locomotion.mp4,2130,2200,a01_exit_box_gate
+cam1/A01_20260405000000_Locomotion.mp4,2206,2270,a01_door_sit_groom
+cam1/A01_20260405000000_Locomotion.mp4,2580,2656,a01_far_left_sniff_leave
+cam4/A04_20260405000000.mp4,2425,2495,a04_walk_in_sniff_drink
+cam4/A04_20260405000000.mp4,2725,3000,a04_return_lay_lick_groom_drink

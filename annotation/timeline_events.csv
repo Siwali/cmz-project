@@ -1,0 +1,27 @@
+camera,clock_start,clock_end,behavior,status,check,notes
+A04,00:40:35,00:40:43,locomotion,Active,,walks in from the top of the view
+A04,00:40:43,00:40:54,sniffing_exploring,Active,,sniffs around the water bowl
+A04,00:40:54,00:41:05,drinking,Active,,licks the bowl
+A04,00:41:05,00:41:25,standing_still,Inactive,posture,looking around; posture not confirmed
+A04,00:41:25,00:41:35,locomotion,Active,end time,leaves the room
+A04,00:45:55,00:46:36,sniffing_exploring,Active,start time,returns; walks around bowl and sniffs the door frame. Source says lay down at 45:36 (before 45:55): please confirm
+A04,00:46:36,00:46:50,resting_lying,Inactive,times,lays down at the bowl
+A04,00:46:50,00:47:00,drinking,Active,end time,licks for a few seconds
+A04,00:47:26,00:49:26,grooming,Active,,stops and stands up
+A04,00:49:26,,drinking,Active,end time,drinks again after grooming
+A03,00:35:38,00:35:45,locomotion,Active,,leaves the box and goes straight to the tray
+A03,00:35:45,00:36:30,feeding,Active,,eating at the tray
+A03,00:36:30,00:36:37,sitting,Inactive,times,sits near the tray
+A03,00:36:37,00:36:57,grooming,Active,times,grooms for about 20 s
+A03,00:36:57,,locomotion,Active,end time,walks away from the tray
+A01,00:35:41,,locomotion,Active,end time,walks out of the sleeping box; stands at the right gate
+A01,00:36:56,00:37:07,locomotion,Active,,appears at the small door on the left; sits at the door
+A01,00:37:07,00:37:38,grooming,Active,,then walks out of frame
+A01,00:43:10,00:43:33,not_visible,Unknown,,far left behind the gate
+A01,00:43:33,00:44:06,sniffing_exploring,Active,,walks around the room sniffing; leaves at 44:06
+A02,00:35:38,00:35:45,locomotion,Active,,walks out of the box
+A02,00:35:45,00:36:30,feeding,Active,,eating; stays on the right of the view (same event as A03)
+A02,00:37:37,00:38:37,locomotion,Active,,jumps on top of the sleeping box and walks around it (not sleeping)
+A02,00:38:37,00:39:48,standing_still,Inactive,posture,stands still on the box; possibly defecating
+A02,00:40:39,,locomotion,Active,end time,jumps down and goes back to the food tray. Gap 39:48 to 40:39 not described
+A02,04:44:30,04:54:30,resting_in_box,Inactive,time,enters the sleeping box behind the plant and does not come out for 10 min; entered as written (4:44:30): confirm

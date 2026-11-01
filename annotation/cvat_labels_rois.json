@@ -1,0 +1,8 @@
+[
+  {"name": "roi_box_entrance", "color": "#d62728", "type": "polygon", "attributes": []},
+  {"name": "roi_box_body",     "color": "#8c564b", "type": "polygon", "attributes": []},
+  {"name": "roi_door",         "color": "#1f77b4", "type": "polygon", "attributes": []},
+  {"name": "roi_water_bowl",   "color": "#17becf", "type": "polygon", "attributes": []},
+  {"name": "roi_tray",         "color": "#2ca02c", "type": "polygon", "attributes": []},
+  {"name": "roi_tire_bed",     "color": "#9467bd", "type": "polygon", "attributes": []}
+]

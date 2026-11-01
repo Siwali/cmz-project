@@ -1,0 +1,87 @@
+### Python
+# Byte-compiled files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# C extensions
+*.so
+
+# Distribution / packaging
+build/
+dist/
+*.egg-info/
+*.egg
+
+# dotenv environment variable files
+.env
+
+# Virtual environments
+.venv
+.venv*/
+env/
+venv/
+
+# Local inference env + outputs (kept on this PC only)
+local_runs/
+
+# Unit test / coverage reports
+htmlcov/
+.tox/
+.nox/
+.coverage
+.coverage.*
+.pytest_cache/
+
+# Type checkers
+.mypy_cache/
+
+# Jupyter Notebook
+.ipynb_checkpoints
+
+# pyenv
+# .python-version
+
+### Project data (keep on Drive, not in git)
+# Raw and processed video
+*.mp4
+*.avi
+*.mkv
+*.mov
+# Extracted frames and annotation exports
+frames/
+annotation/frames/
+annotation/exports/
+annotation/ground_truth_pilot_frames-*/
+*.jpg
+*.jpeg
+*.png
+# Annotation/frame archives (keep on Drive, not in git)
+*.zip
+# Model weights
+*.pt
+*.pth
+*.onnx
+# Script outputs
+out/
+runs/
+data/
+fake_detections.csv
+
+### Local notes (kept on this PC only)
+HANDOFF.md
+WRITEUP.md
+context.md
+
+### Windows
+# Windows thumbnail cache files
+Thumbs.db
+
+# Folder config file
+[Dd]esktop.ini
+
+# Recycle Bin used on file shares
+$RECYCLE.BIN/
+
+# Windows shortcuts
+*.lnk
