@@ -1,0 +1,29 @@
+{
+  "name": "civet",
+  "color": "#00a6ff",
+  "type": "rectangle",
+  "attributes": [
+    {
+      "name": "behavior",
+      "mutable": true,
+      "input_type": "select",
+      "default_value": "unknown",
+      "values": [
+        "eating",
+        "active_other",
+        "resting",
+        "inactive_other",
+        "unknown"
+      ]
+    },
+    {
+      "name": "partly_hidden",
+      "mutable": true,
+      "input_type": "checkbox",
+      "default_value": "false",
+      "values": [
+        "false"
+      ]
+    }
+  ]
+}
