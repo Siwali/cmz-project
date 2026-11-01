@@ -18,8 +18,12 @@ dist/
 
 # Virtual environments
 .venv
+.venv*/
 env/
 venv/
+
+# Local inference env + outputs (kept on this PC only)
+local_runs/
 
 # Unit test / coverage reports
 htmlcov/
