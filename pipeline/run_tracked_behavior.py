@@ -74,6 +74,40 @@ def box_gray(frame_bgr, box):
     return cv2.resize(g, (64, 64)).astype(np.float32)
 
 
+def near_tray(box, tray, frac=0.3):
+    """True if the civet box touches or is within frac*civet_diag of the (fixed) tray box."""
+    cx1, cy1, cx2, cy2 = box
+    bx1, by1, bx2, by2 = tray
+    dx = max(bx1 - cx2, cx1 - bx2, 0.0)
+    dy = max(by1 - cy2, cy1 - by2, 0.0)
+    gap = (dx * dx + dy * dy) ** 0.5
+    diag = ((cx2 - cx1) ** 2 + (cy2 - cy1) ** 2) ** 0.5
+    return gap <= frac * diag
+
+
+def centroid_speed(hist, t_s, cx, cy, window_s=0.5):
+    """Civet-centroid speed (px/s) over ~window_s, using the oldest centroid within the window."""
+    ref = next((e for e in hist if t_s - e[0] <= window_s), None)
+    if ref is None:
+        return 0.0
+    dt = t_s - ref[0]
+    return (((cx - ref[1]) ** 2 + (cy - ref[2]) ** 2) ** 0.5 / dt) if dt > 1e-3 else 0.0
+
+
+def tray_adjust(behavior, probs, box, tray, speed, translate_px):
+    """Tray-region rule: at the tray while not walking -> Eating; away from the tray, never Eating.
+    Complements the motion gate (which only flips Resting->Active) by fixing the daytime
+    Eating->Resting collapse at the feeding tray. 'tray' is None -> rule off."""
+    if tray is None or box is None:
+        return behavior
+    at = near_tray(box, tray)
+    if at and speed < translate_px:
+        return "Eating"
+    if (not at) and behavior == "Eating":
+        return max((c for c in CLASSES if c != "Eating"), key=lambda c: probs.get(c, 0.0))
+    return behavior
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--video", required=True)
@@ -84,6 +118,13 @@ def main():
     ap.add_argument("--classify-conf", type=float, default=0.50, help="only classify when YOLO conf >= this")
     ap.add_argument("--behavior-every", type=int, default=3, help="run the ResNet every N frames (reuse between)")
     ap.add_argument("--motion-thresh", type=float, default=4.5)
+    ap.add_argument("--tray-box", default=None,
+                    help="fixed food-tray box 'x1,y1,x2,y2' in native pixels; enables the tray-region "
+                         "rule (at tray + not walking -> Eating; away from tray -> never Eating). "
+                         "Per camera; omit to disable. cam3 example: 688,505,792,586")
+    ap.add_argument("--tray-translate", type=float, default=35.0,
+                    help="civet-centroid speed (px/s) above which it is 'walking past' the tray, so "
+                         "not forced to Eating")
     ap.add_argument("--cctv-start", default="2026-01-01 00:00:00")
     ap.add_argument("--smooth-window", type=int, default=5)
     ap.add_argument("--min-bout", type=int, default=3)
@@ -99,6 +140,13 @@ def main():
     device = "cuda" if torch.cuda.is_available() else "cpu"
     print("device:", device)
 
+    tray_box = None
+    if args.tray_box:
+        tray_box = [float(v) for v in args.tray_box.split(",")]
+        if len(tray_box) != 4:
+            raise SystemExit("--tray-box must be 'x1,y1,x2,y2'")
+        print("tray-region rule ON, tray box:", tray_box)
+
     cap = cv2.VideoCapture(args.video)
     fps = cap.get(cv2.CAP_PROP_FPS) or 30.0
     cap.release()
@@ -109,6 +157,7 @@ def main():
 
     writer = None
     per_frame, sec_gray = [], {}
+    cent_hist = []          # (t_s, cx, cy) recent civet centroids, for the tray rule's walking test
     last = {"behavior": "Unknown", "conf": 0.0, "probs": {c: 0.0 for c in CLASSES}}
 
     stream = yolo.track(source=args.video, stream=True, persist=True, tracker="bytetrack.yaml",
@@ -145,12 +194,18 @@ def main():
         if box is not None:
             x1, y1, x2, y2 = (float(v) for v in box)
             row.update(x1=x1, y1=y1, x2=x2, y2=y2)
+            cx, cy = (x1 + x2) / 2, (y1 + y2) / 2
+            speed = centroid_speed(cent_hist, t_s, cx, cy)   # px/s over the recent window
+            cent_hist.append((t_s, cx, cy))
+            cent_hist[:] = [e for e in cent_hist if t_s - e[0] <= 1.0]
             if bconf >= args.classify_conf:
                 if fi % max(1, args.behavior_every) == 0:
                     rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
                     bl, bc, bp = classify(behavior, rgb, (x1, y1, x2, y2), device)
                     last = {"behavior": bl, "conf": bc, "probs": bp}
-                row.update(behavior=last["behavior"], behavior_conf=last["conf"],
+                beh = tray_adjust(last["behavior"], last["probs"], (x1, y1, x2, y2),
+                                  tray_box, speed, args.tray_translate)
+                row.update(behavior=beh, behavior_conf=last["conf"],
                            **{f"p_{c}": last["probs"][c] for c in CLASSES})
             if row["second"] not in sec_gray:
                 g = box_gray(frame, box)
