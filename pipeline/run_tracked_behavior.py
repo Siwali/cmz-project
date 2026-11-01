@@ -155,9 +155,11 @@ def main():
     yolo = YOLO(args.civet_model)
     behavior = load_behavior(args.behavior_model, device)
 
-    writer = None
-    per_frame, sec_gray = [], {}
+    per_frame = []
     cent_hist = []          # (t_s, cx, cy) recent civet centroids, for the tray rule's walking test
+    sec_motion = {}         # second -> in-box motion vs ~1 s earlier (same box, both frames)
+    sec_seen = set()
+    prev_sec = None         # (frame_bgr, box, second): first sampled frame of the previous second
     last = {"behavior": "Unknown", "conf": 0.0, "probs": {c: 0.0 for c in CLASSES}}
 
     stream = yolo.track(source=args.video, stream=True, persist=True, tracker="bytetrack.yaml",
@@ -166,10 +168,6 @@ def main():
         if args.max_frames and fi >= args.max_frames:
             break
         frame = res.orig_img                      # BGR, native resolution
-        if writer is None:
-            h, w = frame.shape[:2]
-            writer = cv2.VideoWriter(str(out / "tracked_preview.mp4"),
-                                     cv2.VideoWriter_fourcc(*"mp4v"), fps, (w, h))
         t_s = fi / fps
 
         box = tid = None
@@ -207,35 +205,28 @@ def main():
                                   tray_box, speed, args.tray_translate)
                 row.update(behavior=beh, behavior_conf=last["conf"],
                            **{f"p_{c}": last["probs"][c] for c in CLASSES})
-            if row["second"] not in sec_gray:
-                g = box_gray(frame, box)
-                if g is not None:
-                    sec_gray[row["second"]] = g
+            # motion: crop the CURRENT box from this frame and from the previous second's frame
+            # (same box region, ~1 s apart) - a moving civet leaves the box, a resting one does not
+            s = row["second"]
+            if s not in sec_seen:
+                a = box_gray(frame, box)
+                if a is not None:
+                    if prev_sec is not None:
+                        bprev = box_gray(prev_sec[0], box)
+                        if bprev is not None:
+                            sec_motion[s] = float(np.abs(a - bprev).mean())
+                    prev_sec = (frame.copy(), box, s)
+                    sec_seen.add(s)
 
         per_frame.append(row)
 
-        # full-fps overlay
-        status = STATUS.get(row["behavior"], "Unknown")
-        if box is not None:
-            c = STATUS_COLOR[status]
-            cv2.rectangle(frame, (int(row["x1"]), int(row["y1"])), (int(row["x2"]), int(row["y2"])), c, 3)
-            cv2.putText(frame, f"ID {row['track_id']}", (int(row["x1"]), int(row["y1"]) - 8),
-                        cv2.FONT_HERSHEY_SIMPLEX, 0.7, c, 2)
-        txt = f"{row['cctv_time']} | {status}: {row['behavior']} {row['behavior_conf']:.2f}"
-        cv2.rectangle(frame, (0, 0), (min(frame.shape[1], 900), 34), (0, 0, 0), -1)
-        cv2.putText(frame, txt, (10, 24), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 255, 255), 2)
-        writer.write(frame)
-
-    if writer is not None:
-        writer.release()
     pf = pd.DataFrame(per_frame)
     pf.to_csv(out / "tracked_frame_predictions.csv", index=False)
-    print(f"processed {len(pf)} frames at {fps:.1f} fps; wrote tracked_preview.mp4")
+    print(f"processed {len(pf)} frames at {fps:.1f} fps")
 
     # ---- 1 Hz observation sheet (majority behavior per second) + motion gate ----
     secs = sorted(int(s) for s in pf["second"].unique())
     rows, gated = [], []
-    prev_g = None
     for s in secs:
         sub = pf[(pf["second"] == s) & (pf["behavior"] != "Unknown")]
         if len(sub):
@@ -244,10 +235,7 @@ def main():
             pe = float(sub["p_Eating"].mean()); pl = float(sub["p_Locomotion"].mean())
         else:
             beh, conf, pe, pl = "Unknown", 0.0, 0.0, 0.0
-        g = sec_gray.get(s)
-        motion = float(np.abs(g - prev_g).mean()) if (g is not None and prev_g is not None) else np.nan
-        if g is not None:
-            prev_g = g
+        motion = sec_motion.get(s, np.nan)
         beh_g = gate_label(beh, motion, pe, pl, args.motion_thresh)
         clk = (base + timedelta(seconds=s)).strftime("%H:%M:%S")
         rows.append({"second": s, "behavior": beh_g, "clock": clk, "conf": conf})
@@ -257,9 +245,38 @@ def main():
     per_second, bouts = build_sheet(rows, args.smooth_window, args.min_bout, args.max_gap)
     bt = pd.DataFrame(bouts)
     bt.to_csv(out / "observation_sheet.csv", index=False)
+
+    # ---- preview (second pass): annotate each frame with the FINAL gated label, so the preview
+    # matches the observation sheet (tray rule + motion gate), not the raw per-frame CNN ----
+    sec_gated = {g["second"]: g["behavior_gated"] for g in gated}
+    cap2 = cv2.VideoCapture(args.video)
+    writer = None
+    for row in per_frame:
+        ok, frame = cap2.read()
+        if not ok:
+            break
+        if writer is None:
+            h, w = frame.shape[:2]
+            writer = cv2.VideoWriter(str(out / "tracked_preview.mp4"),
+                                     cv2.VideoWriter_fourcc(*"mp4v"), fps, (w, h))
+        gb = sec_gated.get(row["second"], row["behavior"])
+        status = STATUS.get(gb, "Unknown")
+        if not (isinstance(row["x1"], float) and np.isnan(row["x1"])):
+            c = STATUS_COLOR[status]
+            cv2.rectangle(frame, (int(row["x1"]), int(row["y1"])), (int(row["x2"]), int(row["y2"])), c, 3)
+            cv2.putText(frame, f"ID {row['track_id']}", (int(row["x1"]), int(row["y1"]) - 8),
+                        cv2.FONT_HERSHEY_SIMPLEX, 0.7, c, 2)
+        txt = f"{row['cctv_time']} | {status}: {gb}"
+        cv2.rectangle(frame, (0, 0), (min(frame.shape[1], 900), 34), (0, 0, 0), -1)
+        cv2.putText(frame, txt, (10, 24), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 255, 255), 2)
+        writer.write(frame)
+    cap2.release()
+    if writer is not None:
+        writer.release()
+
     print("\nObservation sheet (time, status, behavior):")
     print(bt.to_string(index=False) if len(bt) else "(no classified seconds)")
-    print(f"\nsaved outputs to {out.resolve()}")
+    print(f"\nsaved outputs + preview to {out.resolve()}")
 
 
 if __name__ == "__main__":
