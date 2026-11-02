@@ -131,6 +131,9 @@ def main():
     ap.add_argument("--max-gap", type=int, default=2)
     ap.add_argument("--any-class", action="store_true", help="accept any YOLO class (smoke test with COCO models)")
     ap.add_argument("--max-frames", type=int, default=0, help="stop after N frames (0 = whole video)")
+    ap.add_argument("--no-preview", action="store_true",
+                    help="skip the annotated preview video (second pass); useful for long videos where "
+                         "only the observation sheet is needed")
     args = ap.parse_args()
 
     from ultralytics import YOLO
@@ -249,9 +252,9 @@ def main():
     # ---- preview (second pass): annotate each frame with the FINAL gated label, so the preview
     # matches the observation sheet (tray rule + motion gate), not the raw per-frame CNN ----
     sec_gated = {g["second"]: g["behavior_gated"] for g in gated}
-    cap2 = cv2.VideoCapture(args.video)
+    cap2 = cv2.VideoCapture(args.video) if not args.no_preview else None
     writer = None
-    for row in per_frame:
+    for row in ([] if args.no_preview else per_frame):
         ok, frame = cap2.read()
         if not ok:
             break
@@ -270,7 +273,8 @@ def main():
         cv2.rectangle(frame, (0, 0), (min(frame.shape[1], 900), 34), (0, 0, 0), -1)
         cv2.putText(frame, txt, (10, 24), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 255, 255), 2)
         writer.write(frame)
-    cap2.release()
+    if cap2 is not None:
+        cap2.release()
     if writer is not None:
         writer.release()
 
