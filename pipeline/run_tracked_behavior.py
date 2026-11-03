@@ -43,6 +43,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 from behavior_data import CLASSES, tight_crop               # noqa: E402
 from make_observation_sheet import STATUS, build_sheet        # noqa: E402
 from apply_motion_gate import gate_label                      # noqa: E402
+from ethogram_sheets import write_sheets                      # noqa: E402
 
 MEAN, STD = [0.485, 0.456, 0.406], [0.229, 0.224, 0.225]
 TF = T.Compose([T.ToTensor(), T.Normalize(MEAN, STD)])
@@ -248,6 +249,8 @@ def main():
     per_second, bouts = build_sheet(rows, args.smooth_window, args.min_bout, args.max_gap)
     bt = pd.DataFrame(bouts)
     bt.to_csv(out / "observation_sheet.csv", index=False)
+    if len(bt):                                   # Phase-1 ethogram tables (duration + eating frequency)
+        write_sheets(bt, out)
 
     # ---- preview (second pass): annotate each frame with the FINAL gated label, so the preview
     # matches the observation sheet (tray rule + motion gate), not the raw per-frame CNN ----
