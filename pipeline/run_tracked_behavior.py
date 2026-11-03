@@ -267,11 +267,14 @@ def main():
                                      cv2.VideoWriter_fourcc(*"mp4v"), fps, (w, h))
         gb = sec_gated.get(row["second"], row["behavior"])
         status = STATUS.get(gb, "Unknown")
+        if tray_box is not None:                      # fixed food-tray region used by the tray rule
+            tx1, ty1, tx2, ty2 = (int(v) for v in tray_box)
+            cv2.rectangle(frame, (tx1, ty1), (tx2, ty2), (0, 215, 255), 2)
+            cv2.putText(frame, "TRAY", (tx1, ty1 - 6),
+                        cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 215, 255), 2)
         if not (isinstance(row["x1"], float) and np.isnan(row["x1"])):
             c = STATUS_COLOR[status]
             cv2.rectangle(frame, (int(row["x1"]), int(row["y1"])), (int(row["x2"]), int(row["y2"])), c, 3)
-            cv2.putText(frame, f"ID {row['track_id']}", (int(row["x1"]), int(row["y1"]) - 8),
-                        cv2.FONT_HERSHEY_SIMPLEX, 0.7, c, 2)
         txt = f"{row['cctv_time']} | {status}: {gb}"
         cv2.rectangle(frame, (0, 0), (min(frame.shape[1], 900), 34), (0, 0, 0), -1)
         cv2.putText(frame, txt, (10, 24), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 255, 255), 2)
